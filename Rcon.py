@@ -30,7 +30,7 @@ Attributes:
 		(packet_id, packet_type=0, packet_body=[server's response to the command or \0x00])
 """
 import select, socket, struct, logging as log
-from Exceptions import InvalidPacketType
+from exceptions_ import InvalidPacketType
 
 SERVERDATA_AUTH = 3
 
@@ -169,6 +169,6 @@ if __name__ == '__main__':
 	rcon.send(3, 'karasjok')
 	rcon.recv()
 	rcon.recv()
+	rcon.disconnect()
 	rcon.recv()
 	
-	rcon.disconnect()
