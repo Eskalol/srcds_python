@@ -13,7 +13,7 @@ Attributes:
     	it will respond with an empty SERVERDATA_RESPONSE_VALUE,
     	followed immediately by a SERVERDATA_AUTH_RESPONSE indicating whether authentication succeeded or failed.
 		Note that the status code is returned in the packet id field, 
-		so when pairing the response with the original auth request, 
+		so when pairing the response with the original auth request,
 		you may need to look at the packet id of the preceeding SERVERDATA_RESPONSE_VALUE.
 		If authentication was successful, the ID assigned by the request. If auth failed, -1 (0xFF FF FF FF)
 		values in packet: (packet_id, packet_type=2, packet_body=\x00)
@@ -30,7 +30,7 @@ Attributes:
 		(packet_id, packet_type=0, packet_body=[server's response to the command or \0x00])
 """
 import select, socket, struct, logging as log
-from exceptions_ import ErrorInvalidPacketType
+from exceptions_ import InvalidPacketTypeError, InvalidPassword
 
 SERVERDATA_AUTH = 3
 
@@ -40,164 +40,174 @@ SERVERDATA_EXECCOMMAND = 2
 
 SERVERDATA_RESPONSE_VALUE = 0
 
-#package types end
+
+# package types end
 
 class Rcon(object):
-	"""This class connects to the source dedicated server
-	and send/read data over the Rcon protocol.
+    """This class connects to the source dedicated server
+    and send/read data over the Rcon protocol.
 
-	package structure:
-	________________________________________
-	| Field |             Type             |
-	|-------|------------------------------|
-	| Size  | signed integer little-endian |
-	| ID    | signed integer little-endian |
-	| Type  | signed integer little-endian |
-	| Body  | Null-terminated ASCII String |
-	| Empty | 0x00                         |
-	|_______|______________________________|
+    package structure:
+    ________________________________________
+    | Field |             Type             |
+    |-------|------------------------------|
+    | Size  | signed integer little-endian |
+    | ID    | signed integer little-endian |
+    | Type  | signed integer little-endian |
+    | Body  | Null-terminated ASCII String |
+    | Empty | 0x00                         |
+    |_______|______________________________|
 
-	Attributes:
-		host (str): ip or hostname
-		port (int): port number
-		password (str): rcon password
-		timeout (float): timeout
-		tcp_con (object): connection to the srcds server
-		packet_id (int): unique id for each request
-	"""
+    Attributes:
+        host (str): ip or hostname
+        port (int): port number
+        password (str): rcon password
+        timeout (float): timeout
+        tcp_con (object): connection to the srcds server
+        packet_id (int): unique id for each request
+    """
 
-	def __init__(self, host, port, password, verbose=False, timeout=1.0):
-		"""Summary
-		
-		Args:
-		    host (TYPE): ip or hostname
-		    port (TYPE): port number
-		    password (TYPE): rcon password
-		    verbose (bool, optional): verbose
-		    timeout (float, optional): timeout
-		"""
-		self.host = host
-		self.port = port
-		self.password = password
-		self.timeout = timeout
-		self.tcp_con = None
-		self.packet_id = 0
-		
-		if verbose:
-			#logs everything.
-			log.basicConfig(format='Rcon %(levelname)s: %(message)s', level=log.DEBUG)
-			log.info('Verbose output.')
-		else:
-			#logs WARNING and ERRORS.
-			log.basicConfig(format='Rcon %(levelname)s: %(message)s')
+    def __init__(self, host, port, password, verbose=False, timeout=1.0):
+        """Summary
 
-	def disconnect(self):
-		"""Disconnect from server
-		
-		Returns:
-		    TYPE: Description
-		"""
-		if self.tcp_con:
-			self.tcp_con.close()
+        Args:
+            host (TYPE): ip or hostname
+            port (TYPE): port number
+            password (TYPE): rcon password
+            verbose (bool, optional): verbose
+            timeout (float, optional): timeout
+        """
+        self.host = host
+        self.port = port
+        self.password = password
+        self.timeout = timeout
+        self.tcp_con = None
+        self.packet_id = 0
 
-	def connect(self):
-		"""Connect to source dedicated server
+        if verbose:
+            # logs everything.
+            log.basicConfig(format='Rcon %(levelname)s: %(message)s', level=log.DEBUG)
+            log.info('Verbose output.')
+        else:
+            # logs WARNING and ERRORS.
+            log.basicConfig(format='Rcon %(levelname)s: %(message)s')
 
-		Returns:
-		    TYPE: Description
-		"""
+    def disconnect(self):
+        """Disconnect from server
 
-		self.tcp_con = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.tcp_con.settimeout(self.timeout)
-		try:
-			self.tcp_con.connect((self.host, self.port))
-			log.info('Connected to: %s:%d' % (self.host, self.port))
-		except Exception as e:
-			log.error('Could not connect to: %s:%d. Exception: %s' % (self.host, self.port, e))
+        Returns:
+            TYPE: Description
+        """
+        if self.tcp_con:
+            self.tcp_con.close()
 
-	def send(self, packet_type, package_body):
-		"""sends rcon packet to source dedicated server over the rcon protocol
-		
-		Args:
-		    packet_type (int): packet type see:
-		    	:py:attr:'.SERVERDATA_AUTH'
-		    	:py:attr:'.SERVERDATA_EXECCOMMAND'
-		    package_body (TYPE): packet type determines how the package body is intepreted by the server
-		    	example: if the packet type is SERVERDATA_AUTH,
-		    	the server will expect the packet_body to be an rcon password.
-		
-		Returns:
-		    TYPE: Description
-		"""
-		if packet_type != SERVERDATA_AUTH and packet_type != SERVERDATA_AUTH_RESPONSE:
-			#check for valid packet_type
-			raise ErrorInvalidPacketType
+    def connect(self):
+        """Connect to source dedicated server
 
-		#Increments unique package id.
-		self.packet_id += 1
-		#Creates packet content in order: (package_id, package_type, package_body, 0x00).
-		content = struct.pack('<l', self.packet_id) + struct.pack('<l', packet_type) + package_body + '\x00\x00'
-		try:
-			#Inserts content size in front of content and sends.
-			self.tcp_con.send(struct.pack('<l', len(content)) + content)
-			log.info('Sent %d bytes' % (len(content) + 4))
-		except Exception as e:
-			log.error('Failed to send. Exception: %s' % e)
+        Returns:
+            TYPE: Description
+        """
+        self.tcp_con = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp_con.settimeout(self.timeout)
+        try:
+            self.tcp_con.connect((self.host, self.port))
+            log.info('Connected to: %s:%d' % (self.host, self.port))
+        except Exception as e:
+            log.error('Could not connect to: %s:%d. Exception: %s' % (self.host, self.port, e))
 
-	def recv(self, sent_packet_type=SERVERDATA_EXECCOMMAND):
-		"""Receives data from the source dedicated server over the rcon protocol
-		
-		Returns:
-		    TYPE: Description
-		
-		Args:
-		    sent_packet_type (str, optional): Description
-		"""
-		packet_size = 0 #when 0 we will reade the packet data length first
-		packet_id = 0
-		packet_type = 0
-		packet_body = ''
+    def send(self, packet_type, package_body):
+        """sends rcon packet to source dedicated server over the rcon protocol
 
-		recv_next_bytes = 4
-		while 1:
+        Args:
+            packet_type (int): packet type see:
+                :py:attr:'.SERVERDATA_AUTH'
+                :py:attr:'.SERVERDATA_EXECCOMMAND'
+            package_body (TYPE): packet type determines how the package body is intepreted by the server
+                example: if the packet type is SERVERDATA_AUTH,
+                the server will expect the packet_body to be an rcon password.
 
-			try:
-				recv = self.tcp_con.recv(recv_next_bytes)
-				if len(recv) >= 4:
-					if packet_size == 0:
-						#we are expecting packet data length
-						packet_size = struct.unpack('<l', recv)[0]
-						recv_next_bytes = packet_size
-						print packet_size
-					else:
-						#we have received the packet data length
-						packet_id = struct.unpack('<l', recv[:4])[0]
-						packet_type = struct.unpack('<l', recv[4:8])[0]
-						package_body = recv[8:]
-						print packet_type, package_body
-						if sent_packet_type == SERVERDATA_AUTH:
-							#since this is a serverdata Auth we expect more data to come.
-							return self.recv()
-						break
-				else:
-					print 'wohoooo'
-			except socket.timeout:
-				print 'timeout'
-				break
-			except:
-				print 'faen!'
-				break
-		return package_body
+        Returns:
+            TYPE: Description
+        """
+        if packet_type != SERVERDATA_AUTH and packet_type != SERVERDATA_AUTH_RESPONSE:
+            # check for valid packet_type
+            raise InvalidPacketTypeError
 
+        # Increments unique package id.
+        self.packet_id += 1
+        # Creates packet content in order: (package_id, package_type, package_body, 0x00).
+        content = struct.pack('<l', self.packet_id) + struct.pack('<l', packet_type) + package_body + '\x00\x00'
+        try:
+            # Inserts content size in front of content and sends.
+            self.tcp_con.send(struct.pack('<l', len(content)) + content)
+            log.info('Sent %d bytes' % (len(content) + 4))
+        except Exception as e:
+            log.error('Failed to send. Exception: %s' % e)
+
+    def recv(self, sent_packet_type=SERVERDATA_EXECCOMMAND):
+        """Receives data from the source dedicated server over the rcon protocol
+
+        Returns:
+            TYPE: Description
+
+        Args:
+            sent_packet_type (str, optional): Description
+        """
+        packet_size = 0  # when 0 we will reade the packet data length first
+        packet_id = 0
+        packet_type = 0
+        packet_body = ''
+
+        recv_next_bytes = 4
+        while 1:
+
+            try:
+                recv = self.tcp_con.recv(recv_next_bytes)
+                if len(recv) >= 4:
+                    if packet_size == 0:
+                        # we are expecting packet data length
+                        packet_size = struct.unpack('<l', recv)[0]
+                        recv_next_bytes = packet_size
+                        log.info('packet_size: %d' % packet_size)
+                    else:
+                        # we have received the packet data length
+                        packet_id = struct.unpack('<l', recv[:4])[0]
+                        packet_type = struct.unpack('<l', recv[4:8])[0]
+                        packet_body = recv[8:]
+                        log.info('packet_id: %d, packet_type: %d, packet_body:\n%s' % (packet_id, packet_type, packet_body))
+                        if sent_packet_type == SERVERDATA_AUTH:
+                            # since this is a serverdata Auth we expect more data to come.
+                            return self.recv()
+                        break
+                else:
+                    break
+            except socket.timeout:
+                print 'timeout'
+                break
+            except:
+                print 'faen!'
+                break
+        return packet_body, packet_id
+
+    def rcon_login(self):
+        """
+
+        Returns:
+
+        """
+        rcon.send(SERVERDATA_AUTH, self.password)
+        if rcon.recv(SERVERDATA_AUTH) == -1:
+            raise InvalidPassword
+        log.info('Rcon login success!')
 
 if __name__ == '__main__':
-	rcon = Rcon('192.168.1.36', 27015, 'karasjok', True)
-	rcon.connect()
-	rcon.send(3, 'karasjok')
-	rcon.recv(SERVERDATA_AUTH)
-	
-	rcon.send(2, 'status')
-	rcon.recv()
-	
-	rcon.disconnect()
-	
+    rcon = Rcon('192.168.1.36', 27015, 'karasjok', True)
+    rcon.connect()
+    rcon.rcon_login()
+    #rcon.send(3, 'lol')
+    #rcon.recv(SERVERDATA_AUTH)
+
+    rcon.send(2, 'status')
+    rcon.recv()
+
+    rcon.disconnect()
