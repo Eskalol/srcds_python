@@ -143,32 +143,52 @@ class Rcon(object):
 		except Exception as e:
 			log.error('Failed to send. Exception: %s' % e)
 
-	def recv(self):
+	def recv(self, sent_packet_type=SERVERDATA_EXECCOMMAND):
 		"""Summary
 		
 		Returns:
 		    TYPE: Description
 		"""
+		packet_size = 0
+		packet_id = 0
+		packet_type = 0
+		packet_body = ''
+
+		recv_next_bytes = 4
 		while 1:
-			buf = ''
+
 			try:
-				recv = self.tcp_con.recv(1400)
-				print recv
+				recv = self.tcp_con.recv(recv_next_bytes)
+				if len(recv) >= 4:
+					if packet_size == 0:
+						packet_size = struct.unpack('<l', recv)[0]
+						recv_next_bytes = packet_size
+						print packet_size
+					else:
+						packet_id = struct.unpack('<l', recv[:4])[0]
+						packet_type = struct.unpack('<l', recv[4:8])[0]
+						package_body = recv[8:]
+						print packet_type, package_body
+						if sent_packet_type == SERVERDATA_AUTH:
+							self.recv()
+						break
 			except socket.timeout:
 				print 'timeout'
 				break
+			except:
+				print 'faen!'
+				break
+		return packet_type, package_body
 
-
-
-
-		#print self.tcp_con.recv(1400)
 
 if __name__ == '__main__':
 	rcon = Rcon('192.168.1.36', 27015, 'karasjok', True)
 	rcon.connect()
 	rcon.send(3, 'karasjok')
+	rcon.recv(SERVERDATA_AUTH)
+	
+	rcon.send(2, 'status')
 	rcon.recv()
-	rcon.recv()
+	
 	rcon.disconnect()
-	rcon.recv()
 	
