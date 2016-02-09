@@ -43,7 +43,19 @@ SERVERDATA_RESPONSE_VALUE = 0
 #package types end
 
 class Rcon(object):
-	"""Summary
+	"""This class connects to the source dedicated server
+	and send/read data over the Rcon protocol.
+
+	package structure:
+	________________________________________
+	| Field |             Type             |
+	|-------|------------------------------|
+	| Size  | signed integer little-endian |
+	| ID    | signed integer little-endian |
+	| Type  | signed integer little-endian |
+	| Body  | Null-terminated ASCII String |
+	| Empty | 0x00                         |
+	|_______|______________________________|
 
 	Attributes:
 		host (str): ip or hostname
@@ -104,18 +116,7 @@ class Rcon(object):
 			log.error('Could not connect to: %s:%d. Exception: %s' % (self.host, self.port, e))
 
 	def send(self, packet_type, package_body):
-		"""This function sends a package to the srcds
-		
-		package structure:
-		________________________________________
-		| Field |             Type             |
-		|-------|------------------------------|
-		| Size  | signed integer little-endian |
-		| ID    | signed integer little-endian |
-		| Type  | signed integer little-endian |
-		| Body  | Null-terminated ASCII String |
-		| Empty | 0x00                         |
-		|_______|______________________________|
+		"""sends rcon packet to source dedicated server over the rcon protocol
 		
 		Args:
 		    packet_type (int): packet type see:
@@ -144,7 +145,7 @@ class Rcon(object):
 			log.error('Failed to send. Exception: %s' % e)
 
 	def recv(self, sent_packet_type=SERVERDATA_EXECCOMMAND):
-		"""Summary
+		"""Receives data from the source dedicated server over the rcon protocol
 		
 		Returns:
 		    TYPE: Description
@@ -152,7 +153,7 @@ class Rcon(object):
 		Args:
 		    sent_packet_type (str, optional): Description
 		"""
-		packet_size = 0
+		packet_size = 0 #when 0 we will reade the packet data length first
 		packet_id = 0
 		packet_type = 0
 		packet_body = ''
@@ -164,24 +165,29 @@ class Rcon(object):
 				recv = self.tcp_con.recv(recv_next_bytes)
 				if len(recv) >= 4:
 					if packet_size == 0:
+						#we are expecting packet data length
 						packet_size = struct.unpack('<l', recv)[0]
 						recv_next_bytes = packet_size
 						print packet_size
 					else:
+						#we have received the packet data length
 						packet_id = struct.unpack('<l', recv[:4])[0]
 						packet_type = struct.unpack('<l', recv[4:8])[0]
 						package_body = recv[8:]
 						print packet_type, package_body
 						if sent_packet_type == SERVERDATA_AUTH:
-							self.recv()
+							#since this is a serverdata Auth we expect more data to come.
+							return self.recv()
 						break
+				else:
+					print 'wohoooo'
 			except socket.timeout:
 				print 'timeout'
 				break
 			except:
 				print 'faen!'
 				break
-		return packet_type, package_body
+		return package_body
 
 
 if __name__ == '__main__':
