@@ -30,7 +30,7 @@ Attributes:
 		(packet_id, packet_type=0, packet_body=[server's response to the command or \0x00])
 """
 import select, socket, struct, logging as log
-from exceptions_ import InvalidPacketType
+from exceptions_ import ErrorInvalidPacketType
 
 SERVERDATA_AUTH = 3
 
@@ -105,7 +105,7 @@ class Rcon(object):
 
 	def send(self, packet_type, package_body):
 		"""This function sends a package to the srcds
-
+		
 		package structure:
 		________________________________________
 		| Field |             Type             |
@@ -130,7 +130,7 @@ class Rcon(object):
 		"""
 		if packet_type != SERVERDATA_AUTH and packet_type != SERVERDATA_AUTH_RESPONSE:
 			#check for valid packet_type
-			raise InvalidPacketType
+			raise ErrorInvalidPacketType
 
 		#Increments unique package id.
 		self.packet_id += 1
@@ -148,6 +148,9 @@ class Rcon(object):
 		
 		Returns:
 		    TYPE: Description
+		
+		Args:
+		    sent_packet_type (str, optional): Description
 		"""
 		packet_size = 0
 		packet_id = 0

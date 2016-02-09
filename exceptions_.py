@@ -2,7 +2,7 @@
 	
 """
 
-class InvalidPacketType(Exception):
+class ErrorInvalidPacketType(Exception):
 	"""This Exception is thrown when a user pass a invalid packet_type to send function"""
 	def __str__(self):
 		"""returns str of the Exception
